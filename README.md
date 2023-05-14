@@ -34,3 +34,6 @@ Without profiling:
 python3 "/scratch/bka2022/pytorch-example/multimodal-MEMES-master/main.py" --experiment "Eval_Profile" --ckpt "/scratch/bka2022/pytorch-example/multimodal-MEMES-master/runs/spervised_2_MMcontr_1_GPU_2/last_checkpoint-resnet18--distilbert-base-uncased--2x512d--0.20p--std--c--classifier--2x512--bn--selfattend--tanh--2.pth.tar" -data "/scratch/bka2022/pytorch-example/hateful_memes_data" -b 256 --supervised --mmcontr --evaluate_only --bn
 
 ## Results: 
+![image](https://github.com/ris0801/HPMLProject-HatefulMemesChallenge/assets/131811678/59b5b783-4779-4d32-8302-55246d3cceae)
+
+
