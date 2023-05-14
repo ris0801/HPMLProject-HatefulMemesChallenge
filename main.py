@@ -2,10 +2,11 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 from data_aug.contrastive_learning_dataset import get_supervision_dataset_hateful, get_unsupervision_dataset, get_supervision_dataset_harmeme, get_supervision_dataset_memotion
-from models.unsupervised import UnsupervisedModel 
+from models.unsupervised import UnsupervisedModel
 from models.classifier import MultiModalClassifier
 from train_unsupervised import UnsupervisedLearner
 from classification import SupervisedLearner
+
 
 parser = argparse.ArgumentParser(description='PyTorch Multimodal Contrastive Learning with SimCLR')
 
@@ -15,7 +16,7 @@ parser.add_argument('--no-tqdm', action='store_true', help="Disable tqdm and not
 
 # ================================= DataSet =====================================
 
-parser.add_argument('-data', metavar='DIR', default='/home/khizirs/contr/hatefulmemes/dataset/data',
+parser.add_argument('-data', metavar='DIR', default='/scratch/bka2022/pytorch-example/hateful_memes_data',
                     help='path to dataset')
 parser.add_argument('-dataset-name', default='hatefulmemes',
                     help='dataset name', choices=['hatefulmemes', 'harmeme', 'memotion'])
@@ -147,7 +148,7 @@ def main():
     else:
         args.device = torch.device('cpu')
         args.gpu_index = -1
-
+    print(args.device)
     print(args)
 
     ckpt_use = args.ckpt != ''
@@ -156,8 +157,16 @@ def main():
     print(f"Unsupervised Model Name: {model.name}")
 
     if ckpt_use:
-        model.load_state_dict(torch.load(args.ckpt, map_location=args.device)['state_dict'])
-        print(f"Model Loaded from {args.ckpt}")
+        ckpt_dict = torch.load(args.ckpt, map_location=args.device)['state_dict']
+
+        new_dict = {}
+        for key, value in ckpt_dict.items():
+            # Remove the "module." prefix from the key
+            new_key = key.replace("module.", "")
+            new_dict[new_key] = value
+
+        model.load_state_dict(new_dict)
+        print(f"Model Loaded from {args.ckpt}")
 
     if not args.supervised:
         train_dataset = get_unsupervision_dataset(args)

@@ -120,8 +120,15 @@ class UnsupervisedLearner(object):
                     'mask': mask,
                     'label': label
             }
-        batch = {k:v.to(self.args.device) if v is not None else None for k, v in batch.items()}
-        return batch
+        expanded_batch = {}  # Create an empty dictionary to store the expanded batch
+
+        for k, v in batch.items():  # Iterate over key-value pairs in the batch dictionary
+            if v is not None:
+                expanded_batch[k] = v.to(self.args.device)  # Convert value to specified device
+            else:
+                expanded_batch[k] = None  # Set value as None
+
+        return expanded_batch
 
     def save_embed(self, train_loader):
         self.model.eval()
@@ -198,25 +205,42 @@ class UnsupervisedLearner(object):
         logging.info("Complete")
 
     def train(self, train_loader):
+        if torch.cuda.device_count() > 1:
+            self.model = torch.nn.DataParallel(self.model)
+            print("Using multiple GPUS:"+str(torch.cuda.device_count()))
         self.model.train()
+        num_trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         scaler = GradScaler(enabled=self.args.fp16_precision)
         save_config_file(self.writer.log_dir, self.args)
         n_iter = 0
         logging.info(f"Start SimCLR training for {self.args.epochs} epochs.")
         logging.info(f"Using args: {self.args}")
-
+        logging.info(f"Number of trainable parameters: {num_trainable_params}")
         earlyStopper = EarlyStopping(patience=10)
-
+        #Time variables
+        total_dl_time=0
+        total_train_time=0
+        total_time=0
         for epoch_counter in tqdm(range(self.args.epochs), disable=self.args.no_tqdm):
             trainiterator = iter(train_loader)
+            # Total time for each epoch
+            start_total_time = time.perf_counter()
+            dl_time = 0
+            train_time = 0
             for loader_idx in range(len(train_loader)):
+                # Data-loading IO time for each mini-batch
+                start_dl_time = time.perf_counter()
+
                 batch = self.get_batch(trainiterator)
 
-                if self.args.dryrun:
-                    if loader_idx == 4:
-                        print("Dry Run in Unsupervised train complete, exiting")
-                        break
+                # Data-loading IO time for each mini-batch
+                end_dl_time = time.perf_counter()
 
+                dl_time = end_dl_time - start_dl_time + dl_time
+                #print(f"Epoch {epoch_counter+1}: Data-loading time = {end_dl_time - start_dl_time:.4f} seconds")
+
+
+                start_train_time = time.perf_counter()
                 with autocast(enabled=self.args.fp16_precision):
                     out = self.model(batch)
                     loss = self.compute_loss(out, n_iter)
@@ -228,10 +252,21 @@ class UnsupervisedLearner(object):
                 scaler.update()
                 n_iter += 1
 
+                # Total running time for each mini-batch
+                end_train_time = time.perf_counter()
+
+                train_time = end_train_time - start_train_time + train_time
+
+
             earlyStopper(loss.item())
+            # Total time for each epoch
+            end_total_time = time.perf_counter()
+            total_time = end_total_time - start_total_time + total_time
+            total_train_time = train_time + total_train_time
+            total_dl_time = dl_time + total_dl_time
 
             logging.debug("Epoch: {}\tLoss: {}".format(epoch_counter, loss.item()))
-            
+            print(f"Epoch {epoch_counter+1} DataIO time = {dl_time:.4f} seconds Training time = {train_time:.4f} seconds Total time = {end_total_time - start_total_time:.4f} seconds")
             if self.args.dryrun:
                 break
 
@@ -254,7 +289,7 @@ class UnsupervisedLearner(object):
 
         logging.info("Training has finished.")
 
-        checkpoint_name = 'last_checkpoint-{}.pth.tar'.format(self.model.name)
+        checkpoint_name = 'last_checkpoint.pth.tar')
         filename = os.path.join(self.writer.log_dir, checkpoint_name)
         save_checkpoint({
             'epoch': self.args.epochs,
@@ -262,6 +297,6 @@ class UnsupervisedLearner(object):
             'state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
         }, is_best=False, filename=filename)
-
+        logging.info(f"Total Data IO time = {total_dl_time:.4f} seconds; Total Training time = {total_train_time:.4f} seconds; Total time = {total_time:.4f} seconds")
         logging.info(f"Model checkpoint and metadata has been saved at {self.writer.log_dir}.")
         logging.info("Completed self-supervised training.")
