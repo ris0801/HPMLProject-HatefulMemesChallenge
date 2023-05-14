@@ -35,5 +35,6 @@ python3 "/scratch/bka2022/pytorch-example/multimodal-MEMES-master/main.py" --exp
 
 ## Results: 
 ![image](https://github.com/ris0801/HPMLProject-HatefulMemesChallenge/assets/131811678/59b5b783-4779-4d32-8302-55246d3cceae)
+![image](https://github.com/ris0801/HPMLProject-HatefulMemesChallenge/assets/131811678/bc5519de-551e-49d4-9c60-a073a490f22b)
 
 
