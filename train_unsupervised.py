@@ -18,6 +18,7 @@ from tqdm import tqdm
 from utils import save_config_file, save_checkpoint, EarlyStopping
 
 from lightly.loss import ntx_ent_loss
+from torch.profiler import profile, record_function, ProfilerActivity
 
 class UnsupervisedLearner(object):
     def __init__(self, **kwargs):
@@ -127,7 +128,7 @@ class UnsupervisedLearner(object):
                 expanded_batch[k] = v.to(self.args.device)  # Convert value to specified device
             else:
                 expanded_batch[k] = None  # Set value as None
-
+            
         return expanded_batch
 
     def save_embed(self, train_loader):
@@ -230,16 +231,16 @@ class UnsupervisedLearner(object):
             for loader_idx in range(len(train_loader)):
                 # Data-loading IO time for each mini-batch
                 start_dl_time = time.perf_counter()
-
+                
                 batch = self.get_batch(trainiterator)
-
+                
                 # Data-loading IO time for each mini-batch
                 end_dl_time = time.perf_counter()
-
+                
                 dl_time = end_dl_time - start_dl_time + dl_time
                 #print(f"Epoch {epoch_counter+1}: Data-loading time = {end_dl_time - start_dl_time:.4f} seconds")
-
-
+                
+                
                 start_train_time = time.perf_counter()
                 with autocast(enabled=self.args.fp16_precision):
                     out = self.model(batch)
@@ -251,20 +252,20 @@ class UnsupervisedLearner(object):
                 scaler.step(self.optimizer)
                 scaler.update()
                 n_iter += 1
-
+                
                 # Total running time for each mini-batch
                 end_train_time = time.perf_counter()
-
+                
                 train_time = end_train_time - start_train_time + train_time
 
-
+            
             earlyStopper(loss.item())
             # Total time for each epoch
             end_total_time = time.perf_counter()
             total_time = end_total_time - start_total_time + total_time
             total_train_time = train_time + total_train_time
             total_dl_time = dl_time + total_dl_time
-
+            
             logging.debug("Epoch: {}\tLoss: {}".format(epoch_counter, loss.item()))
             print(f"Epoch {epoch_counter+1} DataIO time = {dl_time:.4f} seconds Training time = {train_time:.4f} seconds Total time = {end_total_time - start_total_time:.4f} seconds")
             if self.args.dryrun:
@@ -289,7 +290,7 @@ class UnsupervisedLearner(object):
 
         logging.info("Training has finished.")
 
-        checkpoint_name = 'last_checkpoint.pth.tar')
+        checkpoint_name = 'last_checkpoint.pth.tar'
         filename = os.path.join(self.writer.log_dir, checkpoint_name)
         save_checkpoint({
             'epoch': self.args.epochs,

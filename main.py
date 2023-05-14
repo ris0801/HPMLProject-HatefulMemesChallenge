@@ -2,7 +2,7 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 from data_aug.contrastive_learning_dataset import get_supervision_dataset_hateful, get_unsupervision_dataset, get_supervision_dataset_harmeme, get_supervision_dataset_memotion
-from models.unsupervised import UnsupervisedModel
+from models.unsupervised import UnsupervisedModel 
 from models.classifier import MultiModalClassifier
 from train_unsupervised import UnsupervisedLearner
 from classification import SupervisedLearner
@@ -92,7 +92,8 @@ parser.add_argument('--vis-embed', action='store_true', default=False,
 
 parser.add_argument('--evaluate_only', action='store_true', default=False,
                     help="Only evaluate the given model at checkpoints")
-
+parser.add_argument('--profile', action='store_true', default=False,
+                    help="Only evaluate the given model at checkpoints")
 
 # ================================= LOSSES =====================================
 
@@ -150,12 +151,12 @@ def main():
         args.gpu_index = -1
     print(args.device)
     print(args)
-
+    
     ckpt_use = args.ckpt != ''
     model = UnsupervisedModel(args.arch, args.txtmodel, args.out_dim, args.dropout, args.projector, not ckpt_use, not ckpt_use)
     model.to(args.device)
     print(f"Unsupervised Model Name: {model.name}")
-
+    
     if ckpt_use:
         ckpt_dict = torch.load(args.ckpt, map_location=args.device)['state_dict']
 
@@ -209,9 +210,9 @@ def main():
                 bn=args.bn
         ).to(args.device)
         print(f"Classification Head Name: {classifier.name}")
-
         if args.cl_ckpt != '':
-            classifier.load_state_dict(torch.load(args.cl_ckpt, map_location=args.device)['state_dict'])
+            load = torch.load(args.cl_ckpt, map_location=args.device)['state_dict']
+            classifier.load_state_dict(load)
             print(f"Classifier Loaded from {args.cl_ckpt}")
 
         optimizer = torch.optim.Adam(classifier.parameters(), args.lr, weight_decay=args.weight_decay)
@@ -226,7 +227,10 @@ def main():
         with torch.cuda.device(args.gpu_index):
             simclr = SupervisedLearner(model=model, optimizer=optimizer, scheduler=scheduler, classifier=classifier, args=args)
             if args.evaluate_only:
-                simclr.evaluate(val_loader)
+                if args.profile:
+                    simclr.evaluate_profile(val_loader)
+                else:
+                    simclr.evaluate(val_loader)
             else:
                 simclr.train(train_loader, val_loader)
 

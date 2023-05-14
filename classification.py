@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tqdm import tqdm
 from utils import save_config_file, accuracy, save_checkpoint, plot_confusion_matrix
-
+from torch.profiler import profile, record_function, ProfilerActivity
 
 class SupervisedLearner(object):
     def __init__(self, *args, **kwargs):
@@ -41,7 +41,6 @@ class SupervisedLearner(object):
         scaler = GradScaler(enabled=self.args.fp16_precision)
         self.model.eval()
         save_config_file(self.writer.log_dir, self.args)
-
         n_iter = 0
         logging.info(f"Start Supervised training for {self.args.epochs} epochs.")
         logging.info(f"Using args: {self.args}")
@@ -165,11 +164,11 @@ class SupervisedLearner(object):
 
             self.writer.add_scalar('training/accuracy', train_ac, global_step=n_iter)
             self.writer.add_scalar('validation/accuracy', val_ac, global_step=n_iter)
-            if self.args.task in ['a', 'A']:
-                train_cm_fig = plot_confusion_matrix(train_cm, ['0', '1', '2'])
-                self.writer.add_figure('training/confusion_matrix', train_cm_fig, global_step=n_iter)
-                val_cm_fig = plot_confusion_matrix(val_cm, ['0', '1', '2'])
-                self.writer.add_figure('validation/confusion_matrix', val_cm_fig, global_step=n_iter)
+            #if self.args.task in ['a', 'A']:
+                #train_cm_fig = plot_confusion_matrix(train_cm, ['0', '1', '2'])
+                #self.writer.add_figure('training/confusion_matrix', train_cm_fig, global_step=n_iter)
+                #val_cm_fig = plot_confusion_matrix(val_cm, ['0', '1', '2'])
+                #self.writer.add_figure('validation/confusion_matrix', val_cm_fig, global_step=n_iter)
 
             msg = f"Epoch: {epoch_counter}\tTrain Loss: {trainloss}\tValidation Loss: {valloss}"
             msg += f"\n-----:---\tTrain Accuracy: {train_ac}\tValidation Accuracy: {val_ac}"
@@ -263,3 +262,15 @@ class SupervisedLearner(object):
             msg += " and AUROC: {:.4f}".format(best_val_auroc)
         logging.info("Evaluation Completed")
         logging.info(msg)
+
+    def evaluate_profile(self, val_loader):
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, record_shapes=True) as prof:
+            with record_function("model_inference"):
+                # Initialize search module
+                self.evaluate(val_loader)
+        
+        logging.info("\n"+str(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10)))
+        logging.info("\n"+str(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10)))
+        logging.info("\n"+str(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10)))
+        prof.export_chrome_trace("trace.json")
+        
