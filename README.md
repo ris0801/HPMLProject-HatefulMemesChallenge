@@ -9,7 +9,9 @@ We are specifically working on self supervised pre-training method MM-SimCLR int
 Please create a conda environment with the packages mentioned in requirements.txt 
 All code related to project are available here.
 Please download the following datasets for training:
+
 Hateful Memes: https://www.kaggle.com/datasets/parthplc/facebook-hateful-meme-dataset
+
 Multimodal Hate Speech: https://www.kaggle.com/datasets/victorcallejasf/multimodal-hate-speech
 
 ## Commands to run the code: 
